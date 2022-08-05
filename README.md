@@ -2,7 +2,7 @@
 
 Dan Villarreal (University of Pittsburgh)
 
-This repository contains data for the paper ["Intraspeaker priming across the New Zealand English short front vowel shift"](https://doi.org/10.1177%2F00238309211053033), which I published with Lynn Clark in 2021 in _Language and Speech_. The data consists of 91,146 tokens of short front vowels (TRAP, DRESS, KIT) from New Zealand English, from the [QuakeBox corpus](https://doi.org/10.1016/j.amper.2016.01.001). Of these, the final model was modeled on 59,824 tokens due to various exclusions (e.g., outliers were excluded); information on which tokens were analyzed in the final model is encoded in the column `In_Mod`. To ensure anonymity, the Word column has been replaced with anonymous codes, and the SpkrCode column uses anonymized QuakeBox codes.
+This repository contains data for the paper ["Intraspeaker priming across the New Zealand English short front vowel shift"](https://doi.org/10.1177%2F00238309211053033), which I published with Lynn Clark in 2022 in _Language and Speech_. The data consists of 91,146 tokens of short front vowels (TRAP, DRESS, KIT) from New Zealand English, from the [QuakeBox corpus](https://doi.org/10.1016/j.amper.2016.01.001). Of these, the final model was modeled on 59,824 tokens due to various exclusions (e.g., outliers were excluded); information on which tokens were analyzed in the final model is encoded in the column `In_Mod`. To ensure anonymity, the Word column has been replaced with anonymous codes, and the SpkrCode column uses anonymized QuakeBox codes.
 
 The data is in two formats: .Rds (for use in the R statistical computing environment) and .csv (with blanks for what are called `NA`s in R parlance).
 
@@ -46,3 +46,19 @@ In these columns, the _target_ is the current instance of a short front vowel (T
 * `PrimeTargetTimeDiff`: Difference in seconds between onset of target and offset of prime
 * `PrimeTargetSameWord`: (Boolean) Is target in a different instance of the same word as its prime?
 * `In_Mod`: (Boolean) Was this token included in the model reported in the paper?
+
+## Model
+
+```r
+library(lmerTest)
+x <- readRDS(url("https://github.com/nzilbb/Priming-SFVS-Data/raw/main/Priming-SFVS-Data_27Nov2019.Rds"))
+finalMod <-
+  lmer(TargetShiftIndex ~ PrimeShiftIndex * TargetVowelCategory * 
+         (PrimeVowelCategory * (scale(PrimeTargetTimeDiff) + Gender + 
+	                              scale(SpeechRateDev) + PrimeMorpheme) + 
+			PrimeTargetSameWord) + 
+	     (1+PrimeShiftIndex|Speaker) + (1+PrimeShiftIndex|Word), 
+	   x[x$In_Mod,], 
+	   REML=FALSE, 
+	   control=lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e+05)))
+```
