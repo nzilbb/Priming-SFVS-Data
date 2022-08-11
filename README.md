@@ -2,13 +2,24 @@
 
 Dan Villarreal (University of Pittsburgh)
 
-This repository contains data for the paper ["Intraspeaker priming across the New Zealand English short front vowel shift"](https://doi.org/10.1177%2F00238309211053033), which I published with Lynn Clark in 2022 in _Language and Speech_. The data consists of 91,146 tokens of short front vowels (TRAP, DRESS, KIT) from New Zealand English, from the [QuakeBox corpus](https://doi.org/10.1016/j.amper.2016.01.001). Of these, the final model was modeled on 59,824 tokens due to various exclusions (e.g., outliers were excluded); information on which tokens were analyzed in the final model is encoded in the column `In_Mod`. To ensure anonymity, the Word column has been replaced with anonymous codes, and the SpkrCode column uses anonymized QuakeBox codes.
+This repository contains data for the paper ["Intraspeaker priming across the New Zealand English short front vowel shift"](https://doi.org/10.1177%2F00238309211053033), which I published with Lynn Clark in 2022 in _Language and Speech_, open-access. The data consists of 91,146 tokens of short front vowels (TRAP, DRESS, KIT) from New Zealand English, from the [QuakeBox corpus](https://doi.org/10.1016/j.amper.2016.01.001). Of these, the final model was modeled on 59,824 tokens due to various exclusions (e.g., outliers were excluded); information on which tokens were analyzed in the final model is encoded in the column `In_Mod`. To ensure anonymity, the Word column has been replaced with anonymous codes, and the SpkrCode column uses anonymized QuakeBox codes.
 
-The data is in two formats: .Rds (for use in the R statistical computing environment) and .csv (with blanks for what are called `NA`s in R parlance).
+You can find R code that reproduces the figures and tables in the paper [here](https://nzilbb.github.io/Priming-SFVS-Data/Figures-and-Tables.html).
 
 If you have any questions, please do not hesitate to email me (d.vill atsign pitt.edu) or create a GitHub issue.
 
-## Columns
+## Repository contents
+
+You can browse the contents of this repository on [GitHub](https://github.com/nzilbb/Priming-SFVS-Data)
+
+* Data, in two formats:
+  * `Priming-SFVS-Data_27Nov2019.Rds`: a file format for use in the R statistical computing environment
+  * `Priming-SFVS-Data_27Nov2019.csv`: with blanks for what are called `NA`s in R parlance
+* R code that reproduces the figures and tables in the paper, in two formats:
+  * `Figures-and-Tables.Rmd`: An [R Markdown](https://rmarkdown.rstudio.com/) file that can be directly run in RStudio
+  * `Figures-and-Tables.html`: A compiled html document that combines narrative, code, and the output of code
+
+## Columns in the data
 
 In these columns, the _target_ is the current instance of a short front vowel (TRAP, DRESS, KIT), and the _prime_ is the preceding instance (which may or may not be of the same lexical set as the target). Prime columns have missing values if the target is the speaker's first token in the data.
 
@@ -62,3 +73,5 @@ finalMod <-
 	   REML=FALSE, 
 	   control=lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e+05)))
 ```
+
+

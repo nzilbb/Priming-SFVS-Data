@@ -1,0 +1,634 @@
+---
+title: "Figures and Tables"
+author: "Dan Villarreal"
+date: "11 August 2022"
+output: 
+  html_document:
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+    code_folding: show
+    df_print: "kable"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,
+                      dpi=600, fig.height=4, fig.width=4*7/5,
+                      comment=NA, results="hold")
+```
+
+```{css, echo=FALSE}
+pre {
+  max-height: 300px;
+  overflow-y: auto;
+}
+```
+
+# What's in this file?
+
+This file contains R code that reproduces the figures and tables in the [_Language and Speech_ paper](https://doi.org/10.1177%2F00238309211053033). The file is organized by where the figures and tables are found in the paper.
+
+One figure (Figure 1) is missing from this file; it relies on older code that I don't feel comfortable releasing 'into the wild' at this point. I've also included the code for Appendix B even though it doesn't run on the public dataset in this repo (since the `Word` column is anonymized). Otherwise, all the code in this file is functional, but stylistically I'd write it a little differently if I was coding it today (I was pretty pipe-happy back then!). If you find the code distracting, you can use the "hide" button above each chunk.
+
+The following chunks set up the R code:
+
+```{r, message=FALSE, warning=FALSE}
+##Packages
+library(tidyverse)
+library(magrittr)
+library(lmerTest)
+library(effects)
+library(cowplot)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+##Vowels dataframe
+vowelsDF <- readRDS("Priming-SFVS-Data_27Nov2019.Rds")
+```
+
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE}
+##Final model
+##  FYI: This takes a few minutes to run
+finalMod <- 
+  lmer(TargetShiftIndex ~ PrimeShiftIndex * TargetVowelCategory *
+         (PrimeVowelCategory * (scale(PrimeTargetTimeDiff) + Gender +
+                                  scale(SpeechRateDev) + PrimeMorpheme) + 
+            PrimeTargetSameWord) +
+         (1+PrimeShiftIndex|SpkrCode) + (1+PrimeShiftIndex|Word),
+       vowelsDF %>% 
+         filter(In_Mod),
+       REML=FALSE,
+       control=lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e+05)))
+```
+
+
+# Methods
+
+## Shift Index calculation (Table 1, p. 719)
+
+```{r}
+SDs <-
+  vowelsDF %>% 
+  ##Just the relevant tokens
+  filter(TargetVowelCategory %in% c("TRAP","DRESS","KIT"),
+         !is.na(F1_norm), !is.na(F2_norm)) %>%
+  ##Get the mean of speakers' SDs by measure and TargetVowelCategory
+  group_by(TargetVowelCategory, SpkrCode) %>% 
+  summarise(across(matches("F[12]_norm"), sd), .groups="drop_last") %>% 
+  summarise(across(matches("F[12]_norm"), mean)) %>% 
+  ##Reorder TargetVowelCategory levels
+  arrange(factor(TargetVowelCategory, c("TRAP","DRESS","KIT"))) %>% 
+  ##Turn into a matrix with TargetVowelCategory in columns and measure in rows
+  column_to_rownames("TargetVowelCategory") %>% 
+  as.matrix() %>% 
+  t() %>% 
+  ##More descriptive row names
+  set_rownames(str_replace(rownames(.), "(F[12])_norm",
+                "Mean of speakers' \\1 standard deviations"))
+coeffs <- prop.table(SDs, 2)
+##In apparent time, TRAP/DRESS F1s decrease & KIT F2s decrease
+coeffs[1, c("TRAP","DRESS")] <- -1 * coeffs[1, c("TRAP","DRESS")]
+coeffs[2, "KIT"] <- -1 * coeffs[2, "KIT"]
+rownames(coeffs) <- c("F1 coefficient", "F2 coefficient")
+
+##Raw numbers
+rbind(SDs, coeffs)
+
+##Nicely rounded
+rbind(round(SDs), 
+      round(coeffs, 3))
+```
+
+
+
+## Prime target time difference by Prime and Target (Figure 2, p. 721)
+
+Prime target time difference cutoff:
+
+```{r}
+cutoffPTTD <-
+  vowelsDF %>% 
+  filter(!FirstRow) %>%
+  pull(PrimeTargetTimeDiff) %>% 
+  quantile(0.9) %>% 
+  unname()
+cutoffPTTD
+```
+
+Figure:
+
+```{r}
+vowelsDF %>% 
+  filter(!FirstRow, PrimeTargetTimeDiff < 10) %>%
+  rename(Prime = PrimeVowelCategory,
+         Target = TargetVowelCategory) %>% 
+  ggplot(aes(x=PrimeTargetTimeDiff)) +
+  geom_histogram(binwidth=0.1) +
+  facet_grid(Prime ~ Target, labeller=label_both) +
+  geom_vline(xintercept=cutoffPTTD,
+             lty=2,
+             size=0.2) +
+  xlab("Prime target time difference (seconds)") +
+  theme_bw() +
+  theme(panel.grid.minor=element_blank())
+```
+
+## Breakdown of tokens removed from original dataframe to analysis data set (footnote 6, p. 735)
+
+
+Tokens in original data set:
+
+```{r}
+vowelsDF %>% 
+  nrow()
+```
+
+Number of speakers:
+
+```{r}
+n_distinct(vowelsDF$SpkrCode)
+```
+
+
+Tokens removed as outliers (825 via hand-checking):
+
+```{r}
+vowelsDF %>% 
+  filter(TargetOutlier) %>% 
+  nrow()
+vowelsDF %>% 
+  filter(TargetOutlier) %>% 
+  nrow() %>% 
+  subtract(825)
+```
+
+Tokens that were used as the basis for calculating Shift Index:
+
+```{r}
+vowelsDF %>% 
+  filter(!TargetOutlier) %>% 
+  nrow()
+```
+
+Additional tokens removed for being the speaker's first token:
+
+```{r}
+vowelsDF %>% 
+  filter(!TargetOutlier, FirstRow) %>% 
+  nrow()
+```
+
+Additional tokens removed because they followed outliers:
+
+```{r}
+vowelsDF %>% 
+  filter(!TargetOutlier, !FirstRow, PrimeOutlier) %>% 
+  nrow()
+```
+
+Additional tokens removed for being in the same word as their prime:
+
+```{r}
+vowelsDF %>% 
+  filter(!TargetOutlier, !FirstRow, !PrimeOutlier, PrimeTargetSameExactWord) %>% 
+  nrow()
+```
+
+
+
+Additional tokens removed because they exceeded the prime target time difference cutoff:
+
+```{r}
+vowelsDF %>% 
+  filter(!TargetOutlier, !FirstRow, !PrimeOutlier, !PrimeTargetSameExactWord) %>% 
+  filter(PrimeTargetTimeDiff==0 | PrimeTargetTimeDiff >= cutoffPTTD) %>% 
+  nrow()
+```
+
+Additional tokens removed for having ambiguous prime morphemic status:
+
+```{r}
+vowelsDF %>% 
+  filter(!TargetOutlier, !FirstRow, !PrimeOutlier, !PrimeTargetSameExactWord,
+         PrimeTargetTimeDiff > 0, PrimeTargetTimeDiff < cutoffPTTD, 
+         is.na(PrimeMorpheme)) %>% 
+  nrow()
+```
+
+Final data set size:
+
+```{r}
+vowelsDF %>% 
+  filter(!TargetOutlier, !FirstRow, !PrimeOutlier, !PrimeTargetSameExactWord,
+         PrimeTargetTimeDiff > 0, PrimeTargetTimeDiff < cutoffPTTD,
+         !is.na(PrimeMorpheme)) %>% 
+  nrow()
+```
+
+Sanity-check: The `In_Mod` column encodes the same rows as the `filter()` statement above
+
+```{r}
+identical(
+  vowelsDF %>% 
+    filter(!TargetOutlier, !FirstRow, !PrimeOutlier, !PrimeTargetSameExactWord,
+           PrimeTargetTimeDiff > 0, PrimeTargetTimeDiff < cutoffPTTD,
+           !is.na(PrimeMorpheme)),
+  vowelsDF %>% 
+    filter(In_Mod)
+)
+```
+
+
+
+## Distribution of prime-target combinations (Table 2, p. 722)
+
+```{r}
+vowelsDF %>% 
+  filter(In_Mod) %>% 
+  rename(Prime = PrimeVowelCategory,
+         Target = TargetVowelCategory) %>% 
+  with(table(Target, Prime)) %>% 
+  addmargins()
+```
+
+
+# Results
+
+Set up common R code
+
+```{r}
+##ggplot2 defaults
+ylims1 <- c(-1, 1)
+ylims2 <- c(-1.2, 1.2)
+ylims3 <- c(-2, 2)
+xlabel <- "Prime shift index"
+ylabel <- "Target shift index (fitted model prediction)"
+lineCol <- rgb(0, 128, 255, maxColorValue=255)
+ribbonFill <- rgb(217, 236, 255, maxColorValue=255)
+ribbonAlpha <- 0.5
+
+##Add significance stars column to model summary coefficients (useful for exporting as CSV)
+sigStars <- function(model) {
+  require(dplyr)
+  if (any(class(model) %in% c("summary.merMod", "summary.lmerModLmerTest"))) {
+    smry <- as.data.frame(coef(model))
+  } else if (any(class(model) %in% c("merModLmerTest","lmerModLmerTest"))) {
+    smry <- as.data.frame(coef(summary(model)))
+  } else if (class(model)=="glmerMod") {
+    smry <- as.data.frame(coef(summary(model)))
+  }
+  df <- smry %>%
+    mutate(across(c(Estimate, `Std. Error`), round, 5),
+           across(matches("[tz] value"), round, 3),
+           across(df, round, 0),
+           across(starts_with("Pr("), 
+                  list(pstars = ~ cut(.x, 
+                                      breaks=c(-0.001, 0.001, 0.01, 0.05, 0.1, 1), 
+                                      labels=c("***", "**", "*", ".", "")))),
+           across(matches("^Pr.+\\)$"), base::format.pval, digits=3))
+  rownames(df) <- rownames(smry)
+  colnames(df)[ncol(df)] <- "Sig"
+  df
+}
+
+##Generic plotting function with defaults to apply to all 3x3 plots
+plot3by3 <- function (gg) {
+  gg +
+    scale_x_continuous(xlabel) +
+    scale_y_continuous(ylabel, limits=ylims3) +
+    facet_grid(Prime ~ Target, labeller=label_both) +
+    theme_bw() +
+    theme(panel.grid.minor=element_blank())
+}
+
+##Version of effects:::as.data.frame.eff() that respects original dataframe's
+##  ordering of factor levels
+df.eff <- function (x, row.names = NULL, optional = TRUE, transform = x$transformation$inverse, 
+  ...) {
+  if (class(x)!="eff") stop("x must be of class eff")
+  xx <- x$x
+  for (var in names(xx)) {
+    if (is.factor(xx[[var]])) {
+      ##Fix the issue where levels(xx[[var]]!=(unique(xx[[var]])==levels(origDF[[var]])))
+      xx[[var]] <- addNA(factor(xx[[var]], levels=unique(xx[[var]])))
+    }
+  }
+  x$x <- xx
+  result <- if (is.null(x$se)) 
+    data.frame(x$x, fit = transform(x$fit))
+  else data.frame(x$x, fit = transform(x$fit), se = x$se, 
+    lower = transform(x$lower), upper = transform(x$upper))
+  attr(result, "transformation") <- transform
+  result
+}
+
+##Subset eff object created by effects package, for plotting certain cells of the data
+subset.eff <- function(x, subset) {
+  if (!(class(x) %in% c("eff", "efflist", "effpoly"))) stop("x must be an eff(list/poly) object")
+  r <- if (missing(subset)) 
+    rep_len(TRUE, nrow(x))
+  else {
+    e <- substitute(subset)
+    r <- eval(e, x$x, parent.frame())
+    if (!is.logical(r)) 
+      stop("'subset' must be logical")
+    r & !is.na(r)
+  }
+  x$x <- x$x[r,]
+  x$fit <- x$fit[r]
+  x$model.matrix <- x$model.matrix[r,]
+  x$vcov <- x$vcov[r,r]
+  x$se <- x$se[r]
+  x$lower <- x$lower[r]
+  x$upper <- x$upper[r]
+  x
+}
+```
+
+
+## Claims in running text
+
+> (p. 726) This interaction [with prime target time difference] was significant across all three-way and four-way interactions with prime vowel category and target vowel category (_p_s < .001).
+
+```{r}
+finalMod %>% 
+  sigStars() %>% 
+  rownames_to_column("Term") %>% 
+  filter(str_detect(Term, "PrimeShiftIndex(:TargetVowelCategory(DRESS|TRAP))?(:PrimeVowelCategory(DRESS|TRAP))?:scale\\(PrimeTargetTimeDiff\\)")) %>% 
+  ##Simpler term names
+  mutate(across(Term, str_remove_all,
+                "VowelCategory|hift|ndex|PrimeTarget|scale\\(|\\)"))
+```
+
+> (p. 727) there were no significant three-way interactions between prime shift index, target vowel category, and prime target same word (ps > .12)
+
+```{r}
+finalMod %>% 
+  sigStars() %>% 
+  rownames_to_column("Term") %>% 
+  filter(str_detect(Term, "PrimeShiftIndex(:TargetVowelCategory(DRESS|TRAP))?(:PrimeVowelCategory(DRESS|TRAP))?:PrimeTargetSameWord")) %>% 
+  ##Simpler term names
+  mutate(across(Term, str_remove_all,
+                "VowelCategory|hift|ndex|PrimeTarget|scale\\(|\\)"))
+```
+
+
+
+
+> (footnote 9, p. 735) Among the 2328 tokens for which the target word was a repetition of the prime word, all but 1.5% had the same vowel category for prime and target.  
+
+
+```{r}
+sameWord <-
+  vowelsDF %>% 
+  filter(In_Mod, PrimeTargetSameWord=="TRUE")
+numSameWord <- nrow(sameWord)
+numDiffVowel <-
+  sameWord %>% 
+  filter(PrimeVowelCategory!=TargetVowelCategory) %>% 
+  nrow()
+pctDiffVowel <- round(100 * numDiffVowel / numSameWord, 1)
+numSameWord
+pctDiffVowel
+```
+
+## Plots preparation
+
+Create plots first, then use `cowplot::align_plots()` to ensure they all have the same-size plot area (regardless of legend width)
+
+```{r, warning=FALSE}
+repPlot <- plot3by3(
+  Effect(c("PrimeShiftIndex","TargetVowelCategory","PrimeVowelCategory"), finalMod) %>%
+    df.eff() %>%
+    rename(Target = TargetVowelCategory,
+           Prime = PrimeVowelCategory) %>% 
+    ggplot(aes(x=PrimeShiftIndex, y=fit)) +
+    geom_ribbon(aes(ymin=lower, ymax=upper), fill=ribbonFill, alpha=ribbonAlpha) +
+    geom_line(color=lineCol)
+)
+
+effDecay <- Effect(c("PrimeShiftIndex","TargetVowelCategory","PrimeVowelCategory","PrimeTargetTimeDiff"), 
+              finalMod,
+              xlevels=list(PrimeTargetTimeDiff=vowelsDF %>% 
+                             filter(In_Mod) %>% 
+                             pull(PrimeTargetTimeDiff) %>% 
+                             quantile(0:2/2) %>% 
+                             round(3))) %>%
+  df.eff() %>% 
+  rename(Target = TargetVowelCategory,
+         Prime = PrimeVowelCategory)
+brksDecay <- sort(unique(effDecay$PrimeTargetTimeDiff))
+decayPlot <- plot3by3(
+  effDecay %>%
+    ggplot(aes(x=PrimeShiftIndex, y=fit, 
+               group=PrimeTargetTimeDiff, color=PrimeTargetTimeDiff)) +
+    geom_line() +
+    scale_color_gradient(name="Prime target\ntime difference\n(seconds)", trans="log", 
+                         breaks=brksDecay + .Machine$double.eps, labels=brksDecay, 
+                         guide="legend")
+)
+
+boostPlot <- plot3by3(
+  Effect(c("PrimeShiftIndex","TargetVowelCategory","PrimeVowelCategory","PrimeTargetSameWord"), finalMod) %>%
+    df.eff() %>% 
+    filter(TargetVowelCategory==PrimeVowelCategory) %>% 
+    rename(Target = TargetVowelCategory,
+           Prime = PrimeVowelCategory) %>% 
+    ggplot(aes(x=PrimeShiftIndex, y=fit, 
+               group=PrimeTargetSameWord, color=PrimeTargetSameWord)) +
+    geom_line() +
+    scale_color_discrete(name="Prime target\nsame word")
+)
+
+genderPlot <- plot3by3(
+  Effect(c("PrimeShiftIndex","TargetVowelCategory","PrimeVowelCategory","Gender"), finalMod) %>%
+    df.eff() %>% 
+    rename(Target = TargetVowelCategory,
+           Prime = PrimeVowelCategory) %>% 
+    ggplot(aes(x=PrimeShiftIndex, y=fit, group=Gender, color=Gender)) +
+    geom_line() +
+    scale_color_discrete(name="Gender", labels=c("Female","Male"))
+)
+
+effSpRate <- Effect(c("PrimeShiftIndex","TargetVowelCategory","PrimeVowelCategory","SpeechRateDev"), finalMod,
+                    xlevels=list(SpeechRateDev=vowelsDF %>% 
+                                   filter(In_Mod) %>% 
+                                   pull(SpeechRateDev) %>% 
+                                   quantile(0:2/2) %>% 
+                                   round(3))) %>% 
+  df.eff() %>% 
+  rename(Target = TargetVowelCategory,
+         Prime = PrimeVowelCategory)
+brksSpRate <- sort(unique(effSpRate$SpeechRateDev))
+spRatePlot <- plot3by3(
+  effSpRate %>%
+    ggplot(aes(x=PrimeShiftIndex, y=fit, group=SpeechRateDev, color=SpeechRateDev)) +
+    geom_line() + 
+    scale_color_gradient(name="Relative\nspeech rate", 
+                         breaks=brksSpRate, labels=brksSpRate, 
+                         guide="legend")
+)
+
+morphPlot <- plot3by3(
+  Effect(c("PrimeShiftIndex","TargetVowelCategory","PrimeVowelCategory","PrimeMorpheme"), finalMod) %>%
+    df.eff() %>% 
+    rename(Target = TargetVowelCategory,
+           Prime = PrimeVowelCategory) %>% 
+    ggplot(aes(x=PrimeShiftIndex, y=fit, group=PrimeMorpheme, color=PrimeMorpheme)) +
+    geom_line() +
+    scale_color_discrete(name="Prime morphemic\nstatus")
+)
+
+resultsPlots <- align_plots(repetititon = repPlot, decay = decayPlot,
+                            boost = boostPlot, gender = genderPlot,
+                            spRate = spRatePlot, morph = morphPlot,
+                            align="hv", axis="tblr")
+```
+
+
+## RQ1 & 2 (Core priming effects)
+
+
+### Repetition effect (Figure 3, p. 725)
+
+```{r}
+ggdraw(resultsPlots$repetititon)
+```
+
+
+### Decay effect (Figure 4, p. 726)
+
+```{r}
+ggdraw(resultsPlots$decay)
+```
+
+
+### Lexical boost effect (Figure 5, p. 727)
+
+```{r}
+ggdraw(resultsPlots$boost)
+```
+
+
+
+## RQ3 (Social factors)
+
+
+### Overall gender effect by vowel (Figure 6, p. 728)
+
+```{r, warning=FALSE}
+Effect(c("TargetVowelCategory", "Gender"), finalMod) %>%
+  df.eff() %>% 
+  rename(Target = TargetVowelCategory) %>% 
+  ggplot(aes(x=Target, y=fit, group=Gender, color=Gender)) +
+  geom_point(position=position_dodge(width=0.6)) +
+  geom_errorbar(aes(ymin=lower, ymax=upper), width=0.6, position="dodge") +
+  scale_x_discrete("Target vowel category") +
+  scale_color_discrete(labels=c("Female","Male")) +
+  scale_y_continuous(ylabel, limits=ylims3) +
+  theme_bw() +
+  theme(panel.grid.minor=element_blank())
+```
+
+
+### Repetition effect by gender (Figure 7, p. 729)
+
+```{r}
+ggdraw(resultsPlots$gender)
+```
+
+
+Also relevant is Reviewer 2's comment:
+
+> Also intriguing is the differential result for men and women. Again, I wonder if this could be due to the nature of the change – as women are already more advanced in the change, they may be less susceptible to priming as the shifted form is more entrenched for them than for the men. Comparisons of different age groups for men and women may help disentangle this.
+
+Our response:
+
+> We share Reviewer 2’s curiosity about whether the cross-vowel priming effect plays out equally across all age groups, and whether age interacts with gender in this respect. Unfortunately, these questions cannot be directly answered within this data set. We attempted to fit age group as a social predictor in the initial round of model fitting, both on its own and as an interaction with gender; both of these models suffered excessive multicollinearity so modeling with age group as a predictor could not be pursued further. So while is impossible to answer these questions directly, we have added Figure 8, a new figure with descriptive statistics (i.e., raw data rather than model fits) on target shift index by age category, target vowel category, and gender; this figure helps to speak to Reviewer 2’s question about whether women are already advanced in the change relative to men.
+
+This Figure 8 got deleted in a later round of revisions (it was too confusing), but here it is:
+
+```{r}
+vowelsDF %>% 
+  filter(In_Mod) %>% 
+  mutate(AgeGroup = fct_recode(AgeCategory, 
+                               NULL = "18-25", NULL = "26-35",
+                               "66+" = "66-75", "66+" = "76+")) %>% 
+  filter(!is.na(AgeGroup)) %>%
+  rename(Target = TargetVowelCategory,
+         Prime = PrimeVowelCategory) %>% 
+  ggplot(aes(x=AgeGroup, y=TargetShiftIndex, color=Gender)) +
+  geom_boxplot() +
+  facet_grid(Target ~ ., labeller=label_both) +
+  scale_x_discrete("Age group") +
+  scale_y_continuous("Target shift index (raw data)") +
+  scale_color_discrete(labels=c("Female","Male")) +
+  theme_bw() +
+  theme(panel.grid.minor=element_blank())
+```
+
+## Control predictors
+
+### Repetition effect by prime morphemic status (Figure 8, p. 730)
+
+```{r}
+ggdraw(resultsPlots$morph)
+```
+
+
+### Distribution of target morpheme & prime morpheme by vowel (Table 4, p. 730)
+
+```{r}
+vowelsDF %>% 
+  filter(In_Mod) %>% 
+  mutate(across(TargetMorpheme, fct_explicit_na, "Ambiguous")) %>%
+  split(.$TargetVowelCategory) %>% 
+  map(~ with(.x, table(PrimeMorpheme, TargetMorpheme)))
+```
+
+# Appendices
+
+## Model summary
+
+```{r}
+sigStars(finalMod)
+```
+
+## Grammatical morphemes listing
+
+```{r, eval=FALSE, echo=TRUE}
+##Doesn't run on the public version of vowelsDF (since Word is anonymized)
+vowelsDF %>% 
+  filter(In_Mod,
+         TargetMorpheme=="Grammatical") %>% 
+  mutate(Morpheme = case_when(
+    TargetVowelCategory=="KIT" & Stress=="0" & grepl("IN", Syllable) ~ "-ing",
+    TargetVowelCategory=="KIT" & Word %in% c("hardest","oldest","safest", "deadliest", 
+                               "earliest","youngest","closest","eldest",
+                               "scariest","strongest","highest","saddest",
+                               "shallowest","strangest","weirdest","bravest",
+                               "burliest","cheapest","coolest","driest",
+                               "freakiest","fullest","funniest","latest",
+                               "longest","lowest","luckiest","nearest",
+                               "sweetest") ~ "-est",
+    str_detect(Word, "having") ~ "have",
+    TRUE ~ str_remove_all(as.character(Word), "'t|'s|n't|'d|'ll|'ve")  
+  ) %>% 
+    factor()) %>% 
+  split(.$TargetVowelCategory) %>% 
+  map(~ .x$Morpheme %>% 
+        factor() %>% 
+        summary() %>% 
+        paste0("_", names(.), "_ (", ., ")") %>% 
+        paste0(collapse=", "))
+```
+
+
+# Session info 
+
+```{r}
+sessionInfo()
+```
+
