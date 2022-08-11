@@ -68,7 +68,7 @@ finalMod <-
          (PrimeVowelCategory * (scale(PrimeTargetTimeDiff) + Gender + 
 	                              scale(SpeechRateDev) + PrimeMorpheme) + 
 			PrimeTargetSameWord) + 
-	     (1+PrimeShiftIndex|Speaker) + (1+PrimeShiftIndex|Word), 
+	     (1+PrimeShiftIndex|SpkrCode) + (1+PrimeShiftIndex|Word), 
 	   x[x$In_Mod,], 
 	   REML=FALSE, 
 	   control=lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e+05)))
