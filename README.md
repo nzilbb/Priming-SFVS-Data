@@ -2,11 +2,20 @@
 
 Dan Villarreal (University of Pittsburgh)
 
-This repository contains data for the paper ["Intraspeaker priming across the New Zealand English short front vowel shift"](https://doi.org/10.1177%2F00238309211053033), which I published with Lynn Clark in 2022 in _Language and Speech_, open-access. The data consists of 91,146 tokens of short front vowels (TRAP, DRESS, KIT) from New Zealand English, from the [QuakeBox corpus](https://doi.org/10.1016/j.amper.2016.01.001). Of these, the final model was modeled on 59,824 tokens due to various exclusions (e.g., outliers were excluded); information on which tokens were analyzed in the final model is encoded in the column `In_Mod`. To ensure anonymity, the Word column has been replaced with anonymous codes, and the SpkrCode column uses anonymized QuakeBox codes.
+This repository contains data and code for the paper ["Intraspeaker priming across the New Zealand English short front vowel shift"](https://doi.org/10.1177%2F00238309211053033), which I published with Lynn Clark in 2022 in _Language and Speech_, open-access. The data consists of 91,146 tokens of short front vowels (TRAP, DRESS, KIT) from New Zealand English, from the [QuakeBox corpus](https://doi.org/10.1016/j.amper.2016.01.001). Of these, the final model was modeled on 59,824 tokens due to various exclusions (e.g., outliers were excluded); information on which tokens were analyzed in the final model is encoded in the column `In_Mod`. To ensure anonymity, the Word column has been replaced with anonymous codes, and the SpkrCode column uses anonymized QuakeBox codes.
 
 You can find R code that reproduces the figures and tables in the paper [here](https://nzilbb.github.io/Priming-SFVS-Data/Figures-and-Tables.html).
 
 If you have any questions, please do not hesitate to email me (d.vill atsign pitt.edu) or create a GitHub issue.
+
+**If you use this data in any published work, please cite it**. Citing open data is a small thing you can do to ensure that researchers have the incentive to keep making data open.
+
+[![CC BY-NC-SA 4.0][cc-by-nc-sa-image]][cc-by-nc-sa]
+
+[cc-by-nc-sa]: http://creativecommons.org/licenses/by-nc-sa/4.0/
+[cc-by-nc-sa-image]: https://licensebuttons.net/l/by-nc-sa/4.0/88x31.png
+
+
 
 ## Repository contents
 
